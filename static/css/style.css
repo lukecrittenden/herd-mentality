@@ -1,0 +1,121 @@
+/*
+COLOURS
+FF595E
+FFCA3A
+8AC926
+1982C4
+6A4C93
+*/
+
+body {
+    background-image: url('../images/background.png');
+    background-size: 100vw 100vh;
+    font-family: verdana, serif;
+}
+
+button {
+    background-color: #8AC926;
+    font-family: inherit;
+    font-size: 32px;
+    padding: 15px 15px;
+    text-align: center;
+}
+
+
+h1 {
+    text-align: center;
+}
+
+
+.red-h1 {
+    background-color: #FF595E;
+}
+
+
+input {
+    background-color: #FFCA3A;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 32px;
+    padding: 15px 15px;
+}
+
+
+.red-text {
+    background-color: #FF595E;
+    padding: 15px 15px;
+}
+
+.centered-div {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    justify-content: center;
+}
+
+.group-div {
+    align-items: stretch;
+    border-color: #FF595E;
+    border-style: solid;
+    border-width: 2px;
+    background-color: #FFCA3A;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    transition: background-color 0.2s ease;
+}
+
+.stats-box {
+    background-color: #FFCA3A;
+    padding: 16px;
+}
+
+.account-button {
+    float: right;
+    font-size: 32px;
+}
+
+
+.kick-button {
+    font-size: 16px;
+    padding: 7px 7px;
+}
+
+
+.small-button {
+    font-size: 16px;
+}
+
+.message-input {
+    align-items: stretch;
+    font-size: 16px;
+    padding: 7px 7px;
+    width: auto;
+}
+
+.box {
+    align-items: stretch;
+    border-color: #FF595E;
+    border-style: solid;
+    border-width: 2px;
+    background-color: #6A4C93;
+    display: flex;
+    flex-direction: column;
+    height: 64vh;
+    width: 32vw;
+}
+
+.messages {
+    flex: 1;
+    overflow-y: scroll;
+    width: 100%;
+}
+
+.container {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+    justify-content: center;
+}

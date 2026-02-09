@@ -1,0 +1,21 @@
+{% extends 'base.html' %} {% block content %}
+<div id="menu"></div>
+<div class="container">
+    <div class="box">
+        <h1>Players:</h1>
+        <div class="centered-div" id="users">
+        </div>
+    </div>
+    <div class="box" id="main"></div>
+</div>
+<!--Variables from Python-->
+<script type="text/javascript">
+    const home = "{{url_for('home')}}";
+    const currentUser = "{{user}}";
+    const code = "{{code}}";
+    let currentHost = "{{host}}";
+    let timePerQuestion = "{{time_per_question}}";
+</script>
+<script type="text/javascript" src="../static/js/room.js"></script>
+
+{% endblock %}

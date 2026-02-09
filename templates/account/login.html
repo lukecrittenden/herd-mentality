@@ -1,0 +1,17 @@
+{% extends 'base.html' %} {% block content %}
+<form method="post" autocomplete="off">
+    <div class="centered-div">
+        <label>
+            <input type="text" placeholder="[Enter username]" name="username" value="{{username}}" autocomplete="off"/>
+        </label>
+        <label>
+            <input type="password" placeholder="[Enter password]" name="password" value="{{password}}"
+                   autocomplete="off"/>
+        </label>
+        <button type="submit" name="login">Log in</button>
+        {% if error %}
+            <p class="red-text">{{error}}</p>
+        {% endif %}
+    </div>
+</form>
+{% endblock %}

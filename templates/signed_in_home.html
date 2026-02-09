@@ -1,0 +1,17 @@
+{% extends 'base.html' %} {% block content %}
+<a href="{{url_for('account')}}">
+    <button type="button" class="account-button">&#9786</button>
+</a>
+<form method="post">
+    <div class="centered-div">
+        <div><label>
+            <input type="text" placeholder="Room Code" name="code" value="{{code}}"/>
+        </label></div>
+        <div><button type="submit" name="join">Join a Room</button></div>
+        <div><button type="submit" name="create">Create a Room</button></div>
+        {% if error %}
+            <p class="red-text">{{error}}</p>
+        {% endif %}
+    </div>
+</form>
+{% endblock %}

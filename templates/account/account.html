@@ -1,0 +1,20 @@
+{% extends 'base.html' %} {% block content %}
+<h1>Account settings</h1>
+<form method="post">
+    <div class="centered-div">
+        <p>Signed in as: {{user}}</p>
+        <p class="red-text">Account created: {{account_created}}</p>
+        <div class="stats-box">
+            <ul>
+                <li>Games played: {{user_statistics[0]}}</li>
+                <li>Total tokens: {{user_statistics[1]}}</li>
+                <li>Total wins: {{user_statistics[2]}}</li>
+                <li>Total losses: {{user_statistics[3]}}</li>
+                <li>%Games won: {{user_statistics[4]}}</li>
+            </ul>
+        </div>
+        <button type="submit" name="submit-button" value="log-out">Log out</button>
+        <button type="submit" name="submit-button" value="delete">Delete account</button>
+    </div>
+</form>
+{% endblock %}

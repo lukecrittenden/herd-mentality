@@ -1,0 +1,11 @@
+{% extends 'base.html' %} {% block content %}
+<h1>Herd Mentality</h1>
+<div class="centered-div">
+    <div><a href="{{url_for('register')}}">
+        <button type="button">Create account</button>
+    </a></div>
+    <div><a href="{{url_for('login')}}">
+        <button type="button">Log in</button>
+    </a></div>
+</div>
+{% endblock %}
