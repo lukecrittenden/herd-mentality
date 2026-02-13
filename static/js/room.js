@@ -52,8 +52,9 @@ function createElement(type, {id, text, className, props = {}, events = {}} = {}
 }
 
 // Drag and drop functions
+// https://www.w3schools.com/html/html5_draganddrop.asp
 function dragStartHandler(ev) {
-    ev.dataTransfer.setData("text", ev.target.id);
+    ev.dataTransfer.setData("text/plain", ev.target.id);
 }
 
 function dragOverHandler(ev) {
@@ -63,8 +64,7 @@ function dragOverHandler(ev) {
 function dropHandler(ev) {
     ev.preventDefault();
     const groupDiv = ev.target.closest(".group-div")
-
-    const user = ev.dataTransfer.getData("text");
+    const user = ev.dataTransfer.getData("text/plain");
     let response;
     // TODO: Change code so it gets parent id instead of looping though all responses
     for (const group in state.matchedResponses) {
@@ -81,7 +81,7 @@ function dropHandler(ev) {
             }
         }
     }
-    // If target group is empty, create a new group in state.matchedResponses
+    // If target group is empty, create a new group in currentMatchedResponses
     if (groupDiv.innerHTML === "") {
         const key = Date.now().toString();
         state.matchedResponses[key] = [[user, response]];
@@ -94,8 +94,8 @@ function dropHandler(ev) {
 }
 
 function copyLink() {
-  const link = window.location.href + "/" + code
-  navigator.clipboard.writeText(link);
+    const link = window.location.href + "/" + code
+    navigator.clipboard.writeText(link);
 }
 
 function renderLobby() {
@@ -219,7 +219,7 @@ function renderMatchedResponses() {
                 const response = state.matchedResponses[group][i][1];
                 createElement("p", {
                         id: user, text: "[" + user + "] " + response, props: {draggable: true},
-                        events: {ondragstart: dragStartHandler}
+                        events: {dragstart: dragStartHandler}
                     }, groupDiv
                 );
             }
