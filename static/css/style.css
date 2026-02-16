@@ -21,16 +21,13 @@ button {
     text-align: center;
 }
 
-
 h1 {
     text-align: center;
 }
 
-
 .red-h1 {
     background-color: #FF595E;
 }
-
 
 input {
     background-color: #FFCA3A;
@@ -39,7 +36,6 @@ input {
     font-size: 32px;
     padding: 15px 15px;
 }
-
 
 .red-text {
     background-color: #FF595E;
@@ -76,18 +72,21 @@ input {
     font-size: 32px;
 }
 
-
-.kick-button {
+.tiny-button {
     font-size: 16px;
     padding: 7px 7px;
 }
-
 
 .small-button {
     font-size: 16px;
 }
 
-.message-input {
+.small-red-button {
+    font-size: inherit;
+    background-color: #FF595E;
+}
+
+.small-input {
     align-items: stretch;
     font-size: 16px;
     padding: 7px 7px;

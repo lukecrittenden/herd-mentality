@@ -34,10 +34,8 @@ def check_hash_match(text, hash_salt, pepper):
 def select_random_member(members):
     return random.choice(members)
 
-def select_random_question():
-    with open("questions.json", "r") as file:
-        questions_file = json.load(file)
-    return random.choice(questions_file["questions"])
+def select_random_question(questions):
+    return random.choice(questions)
 
 def automatically_match_responses(responses):
     matched_responses = {}

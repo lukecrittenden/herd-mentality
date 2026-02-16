@@ -297,7 +297,7 @@ socket.on("add-users", function addUser(data) {
         }
         const div = createElement("div", {id: "user: " + item, text: displayName}, usersContainer)
         if (currentUser === currentHost && item !== currentHost) {
-            createElement("button", {className: "kick-button", text: "kick", events: {
+            createElement("button", {className: "tiny-button", text: "kick", events: {
                 click: () => socket.emit("kick-user", item)}}, div
         )}
     }

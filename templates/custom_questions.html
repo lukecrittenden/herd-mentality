@@ -1,0 +1,12 @@
+{% extends 'base.html' %} {% block content %}
+<h1>Upload Custom Questions</h1>
+<form method="post" enctype=multipart/form-data>
+    <div class="centered-div">
+        <input class="small-input" type=file name=file>
+        <button class="small-button" name="submit-button" type="submit" value="upload">
+            Upload</button>
+        <button class="small-red-button" name="submit-button" type="submit" value="reset">
+            Reset all custom questions for your account</button>
+    </div>
+</form>
+{% endblock %}

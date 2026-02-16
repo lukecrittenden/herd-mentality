@@ -2,8 +2,7 @@
 <h1>Account settings</h1>
 <form method="post">
     <div class="centered-div">
-        <p>Signed in as: {{user}}</p>
-        <p class="red-text">Account created: {{account_created}}</p>
+        <p class="red-text">Signed in as: {{user}}<br>Account created: {{account_created}}</p>
         <div class="stats-box">
             <ul>
                 <li>Games played: {{user_statistics[0]}}</li>
@@ -13,8 +12,11 @@
                 <li>%Games won: {{user_statistics[4]}}</li>
             </ul>
         </div>
-        <button type="submit" name="submit-button" value="log-out">Log out</button>
-        <button type="submit" name="submit-button" value="delete">Delete account</button>
+        <button class="small-button" name="submit-button" type="submit" value="upload-custom-questions">
+            Upload Custom Questions
+        </button>
+        <button class="small-button" name="submit-button" type="submit" value="log-out">Log out</button>
+        <button class="small-red-button" name="submit-button" type="submit" value="delete">Delete account</button>
     </div>
 </form>
 {% endblock %}

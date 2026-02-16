@@ -1,5 +1,7 @@
 # TODO: Add different background images for different sections
-# TODO: Custom questions
+# TODO: Add pop-up message when user deletes account
+# TODO: Check out security issues surrounding user uploads
+# TODO: Change Flask project structure
 
 """
 Feedback / suggestions:
@@ -8,7 +10,7 @@ Feedback / suggestions:
 """
 
 from os import path
-from flask import Flask, render_template, request, session, redirect, url_for
+from flask import Flask, flash, render_template, request, session, redirect, url_for
 from flask_socketio import join_room, leave_room, emit, SocketIO
 from utils import *
 from db import *
@@ -26,6 +28,7 @@ class Server:
         self.__app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
         self.__app.config["PEPPER_KEY"] = os.getenv("PEPPER_KEY")
 
+        # TODO: Check if both "POST" and "GET" are needed
         @self.__app.route("/", methods=["POST", "GET"])
         def home():
             # Check if signed in to an account
@@ -41,7 +44,7 @@ class Server:
                     if create == "":
                         # Create a new room
                         code = generate_unique_code(4, self.__rooms)
-                        self.__rooms[code] = Room(user, code)
+                        self.__rooms[code] = Room(user, code, get_custom_questions(session.get("user")))
                         self.__app.logger.info("Room created - Room " + code)
                     elif code == "":
                         error = "Please enter a room code"
@@ -101,7 +104,7 @@ class Server:
                 if error:
                     return render_template("account/register.html", username=username, password=password, error=error)
                 else:
-                    # Add user and display message if user created successfully
+                    # Add user and log message if user created successfully
                     pepper = self.__app.config["PEPPER_KEY"]
                     self.__app.logger.info(add_user(username, password, pepper))
                     return redirect(url_for("home"))
@@ -109,22 +112,55 @@ class Server:
 
         @self.__app.route("/account", methods=["POST", "GET"])
         def account():
-            if request.method == "POST":
-                if request.form["submit-button"] == "log-out":
-                    session.clear()
-                elif request.form["submit-button"] == "delete":
-                    delete_user(session.get("user"))
-                    session.clear()
-                return redirect(url_for("home"))
-            user_statistics = get_user_statistics(session.get("user"))
-            if user_statistics[2] + user_statistics[3] == 0:
-                # If no wins or losses, avoid divide by 0 error
-                user_statistics += ("N/A",)
+            if "user" in session:
+                if request.method == "POST":
+                    if request.form["submit-button"] == "upload-custom-questions":
+                        return redirect(url_for("custom_questions"))
+                    elif request.form["submit-button"] == "log-out":
+                        # Clearing the session removes "user" from the session, logging out the user
+                        session.clear()
+                    elif request.form["submit-button"] == "delete":
+                        self.__app.logger.info(delete_user(session.get("user")))
+                        session.clear()
+                    return redirect(url_for("home"))
+                user_statistics = get_user_statistics(session.get("user"))
+                if user_statistics[2] + user_statistics[3] == 0:
+                    # If no wins or losses, add "N/A" to tuple to avoid divide by 0 error
+                    user_statistics += ("N/A",)
+                else:
+                    # Add W/L ratio to user_statistics tuple
+                    user_statistics += ((user_statistics[2]/(user_statistics[2] + user_statistics[3])) * 100,)
+                return render_template("account/account.html",  user=session.get("user"),
+                                       account_created=get_date_user_created(session.get("user")),
+                                       user_statistics=user_statistics)
             else:
-                user_statistics += ((user_statistics[2]/(user_statistics[2] + user_statistics[3])) * 100,)
-            return render_template("account/account.html",  user=session.get("user"),
-                                   account_created=get_date_user_created(session.get("user")),
-                                   user_statistics=user_statistics)
+                return redirect(url_for("home"))
+
+        @self.__app.route("/custom-questions", methods=["POST", "GET"])
+        def custom_questions():
+            # TODO: Add error if no file uploaded
+            if "user" in session:
+                if request.method == "POST":
+                    # https://flask.palletsprojects.com/en/stable/patterns/fileuploads/
+                    if request.form["submit-button"] == "upload":
+                        # Check if the post request has the file part
+                        if "file" not in request.files:
+                            flash("No file part")
+                            return redirect(request.url)
+                        file = request.files["file"]
+                        # If the user does not select a file, the browser submits an empty file without a filename
+                        if file.filename == "":
+                            flash("No selected file")
+                            return redirect(request.url)
+                        if file and file.filename.endswith(".json"):
+                            questions_json = json.load(file)
+                            self.__app.logger.info(create_custom_questions(session.get("user"), questions_json))
+                    elif request.form["submit-button"] == "reset":
+                        self.__app.logger.info(reset_custom_questions(session.get("user")))
+                    return redirect(url_for("home"))
+                return render_template("custom_questions.html")
+            else:
+                return redirect(url_for("home"))
 
         @self.__app.route("/room", methods=["POST", "GET"])
         def room():
@@ -209,19 +245,17 @@ class Server:
             self.__app.logger.info("Room deleted - Room " + code)
             del self.__rooms[code]
 
-
     def run(self, host, port, debug):
         self.__app.run(host=host, port=port, debug=debug)
 
 
 class Room:
-    def __init__(self, host, code):
+    def __init__(self, host, code, custom_questions):
         # Initialise room settings
         self.__code = code
         self.__members = []
         self.__messages = []
         self.__host = host
-        # self.__custom_questions = []
         # Time is in seconds
         self.__time_per_question = 10
         # The stages of the game are: lobby, questions, match_responses, final_results
@@ -229,6 +263,14 @@ class Room:
         self.__cattle_wrangler = None
         self.__pink_cow_token = None
         self.__winners = None
+        self.__questions = []
+        with open("questions.json", "r") as file:
+            questions_json = json.load(file)
+        for question in questions_json["questions"]:
+            self.__questions.append(question)
+        for question in custom_questions:
+            self.__questions.append(question)
+
 
     def __refresh_users_list(self):
         users_list = []
@@ -341,7 +383,7 @@ class Room:
             emit("match-responses", [responses, matched_responses, self.__cattle_wrangler.get_user()], to=self.__code)
 
     def next_question(self, no_responses=False):
-        emit("questions", [select_random_question(), no_responses], to=self.__code)
+        emit("questions", [select_random_question(self.__questions), no_responses], to=self.__code)
         self.__reset_responses()
 
     def submit_matched_responses(self, matched_responses):

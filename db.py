@@ -8,6 +8,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SCHEMA_PATH = os.path.join(BASE_DIR, "schema.sql")
 DB_PATH = os.path.join(BASE_DIR, "users.db")
 
+# TODO: Do not open and close the database for every query as this is very inefficient
+
 def execute_action(sql, *args):
     con = connect(DB_PATH)
     cur = con.cursor()
@@ -68,11 +70,23 @@ def get_hash_and_salt(username):
     res = execute_query("SELECT PasswordHash, PasswordSalt FROM Users WHERE Username = ?;", username)
     return res[0]
 
-def create_custom_questions(username, questions):
-    ...
+def create_custom_questions(username, questions_json):
+    date = datetime.today().strftime('%Y-%m-%d')
+    for question in questions_json["questions"]:
+        execute_action("INSERT INTO CustomQuestions (Username, QuestionText, DateCreated) VALUES (?, ?, ?);",
+                       username, question, date)
+    return f"Custom questions added to user '{username}' successfully"
+
+def reset_custom_questions(username):
+    execute_action("DELETE FROM CustomQuestions WHERE Username = ?;", username)
+    return f"All custom questions belonging to user '{username}' deleted successfully"
+
+def get_custom_questions(username):
+    res = execute_query("SELECT QuestionText FROM CustomQuestions WHERE Username = ?;", username)
+    return res
 
 def delete_user(username):
-    # TODO: Delete CustomQuestions
     execute_action("DELETE FROM Users WHERE Username = ?;", username)
     execute_action("DELETE FROM UserStatistics WHERE Username = ?;", username)
-    print(f"User '{username}' deleted successfully")
+    execute_action("DELETE FROM CustomQuestions WHERE Username = ?;", username)
+    return f"User '{username}' deleted successfully"

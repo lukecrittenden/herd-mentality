@@ -16,7 +16,8 @@ CREATE TABLE UserStatistics (
 	TotalLosses INT
 );
 CREATE TABLE CustomQuestions (
-	Username VARCHAR(16) PRIMARY KEY,
+	Username VARCHAR(16),
 	QuestionText VARCHAR(255) NOT NULL,
-	DateCreated DATE NOT NULL
+	DateCreated DATE NOT NULL,
+    PRIMARY KEY (Username, QuestionText)
 );
