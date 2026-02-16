@@ -2,8 +2,14 @@ import os
 import random
 import hashlib
 import hmac
+from requests import post
 import json
 from string import ascii_uppercase
+
+def is_human(captcha_response, secret_key):
+    data = {'response': captcha_response, 'secret': secret_key}
+    response = post("https://www.google.com/recaptcha/api/siteverify", data=data)
+    return json.loads(response.text)['success']
 
 def generate_unique_code(length, rooms):
     while True:

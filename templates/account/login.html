@@ -8,6 +8,7 @@
             <input type="password" placeholder="[Enter password]" name="password" value="{{password}}"
                    autocomplete="off"/>
         </label>
+        <div class="g-recaptcha" data-sitekey="{{site_key}}"></div>
         <button type="submit" name="login">Log in</button>
         {% if error %}
             <p class="red-text">{{error}}</p>

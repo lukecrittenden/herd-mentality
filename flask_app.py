@@ -22,11 +22,11 @@ class Server:
         self.__rooms = {}
         self.__app = Flask(name)
         self.__socketio = SocketIO(self.__app)
-
-        # Sets secret key and pepper key
+        # Sets keys for server
         load_dotenv()
-        self.__app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
-        self.__app.config["PEPPER_KEY"] = os.getenv("PEPPER_KEY")
+        keys = ["SECRET_KEY", "PEPPER_KEY", "RECAPTCHA_SITE_KEY", "RECAPTCHA_SECRET_KEY"]
+        for key in keys:
+            self.__app.config[key] = os.getenv(key)
 
         # TODO: Check if both "POST" and "GET" are needed
         @self.__app.route("/", methods=["POST", "GET"])
@@ -66,13 +66,17 @@ class Server:
         def login():
             session.clear()
             if request.method == "POST":
+                error = None
                 username = request.form.get("username")
                 password = request.form.get("password")
-                error = None
+                captcha_response = request.form['g-recaptcha-response']
                 if not username:
                     error = "Please enter a username"
                 elif not password:
                     error = "Please enter a password"
+                # Checks that the user has completed the reCAPTCHA successfully
+                elif not captcha_response or not is_human(captcha_response, self.__app.config["RECAPTCHA_SECRET_KEY"]):
+                    error = "Please complete the reCAPTCHA"
                 elif check_username_exists(username):
                     # Check that users password matches the password stored in the database as a hash
                     pepper = self.__app.config["PEPPER_KEY"]
@@ -83,32 +87,39 @@ class Server:
                 else:
                     error = "Password or username is incorrect"
                 if error:
-                    return render_template("account/login.html", error=error, username=username, password=password)
+                    self.__app.logger.info(f"{request.remote_addr} - {error}")
+                    return render_template("account/login.html", error=error, username=username, password=password,
+                                           site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
                 else:
                     return redirect(url_for("home"))
-            return render_template("account/login.html")
+            return render_template("account/login.html", site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
 
         @self.__app.route("/register", methods=["POST", "GET"])
         def register():
             session.clear()
             if request.method == "POST":
+                error = None
                 username = request.form.get("username")
                 password = request.form.get("password")
-                error = None
+                captcha_response = request.form['g-recaptcha-response']
                 if not username:
-                    error =" Please enter a username"
+                    error = "Please enter a username"
                 elif not password:
                     error = "Please enter a password"
                 elif check_username_exists(username):
                     error = "Account with that username already exists"
+                elif not captcha_response or not is_human(captcha_response, self.__app.config["RECAPTCHA_SECRET_KEY"]):
+                    error = "Please complete the reCAPTCHA"
                 if error:
-                    return render_template("account/register.html", username=username, password=password, error=error)
+                    self.__app.logger.info(f"{request.remote_addr} - {error}")
+                    return render_template("account/register.html", username=username, password=password, error=error,
+                                           site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
                 else:
                     # Add user and log message if user created successfully
                     pepper = self.__app.config["PEPPER_KEY"]
                     self.__app.logger.info(add_user(username, password, pepper))
                     return redirect(url_for("home"))
-            return render_template("account/register.html")
+            return render_template("account/register.html", site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
 
         @self.__app.route("/account", methods=["POST", "GET"])
         def account():
