@@ -1,32 +1,39 @@
-/*
-COLOURS
-FF595E
-FFCA3A
-8AC926
-1982C4
-6A4C93
-*/
-
 body {
     background-image: url('../images/background.png');
-    background-size: 100vw 100vh;
-    font-family: verdana, serif;
+    background-size: cover;
+    background-repeat: no-repeat;
+    font-family: cursive;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: -1;
 }
 
 button {
     background-color: #8AC926;
+    border-color: black;
+    border-style: solid;
+    border-width: 2px;
     font-family: inherit;
     font-size: 32px;
-    padding: 15px 15px;
+    padding: 15px;
     text-align: center;
+    border-radius: 25px;
+}
+
+button:hover {
+    filter: brightness(0.8);
 }
 
 h1 {
     text-align: center;
-}
-
-.red-h1 {
-    background-color: #FF595E;
 }
 
 input {
@@ -34,12 +41,18 @@ input {
     box-sizing: border-box;
     font-family: inherit;
     font-size: 32px;
-    padding: 15px 15px;
+    padding: 15px;
+    border-radius: 25px;
+}
+
+.response {
+    background-color: white;
 }
 
 .red-text {
     background-color: #FF595E;
-    padding: 15px 15px;
+    padding: 15px;
+    border-radius: 25px;
 }
 
 .centered-div {
@@ -51,30 +64,31 @@ input {
 }
 
 .group-div {
-    align-items: stretch;
     border-color: #FF595E;
     border-style: solid;
     border-width: 2px;
-    background-color: #FFCA3A;
+    border-radius: 25px;
+    background-color: white;
     display: flex;
     flex-direction: column;
     padding: 16px;
     transition: background-color 0.2s ease;
 }
 
-.stats-box {
+.alternative-box {
     background-color: #FFCA3A;
     padding: 16px;
+    border-radius: 25px;
 }
 
-.account-button {
-    float: right;
-    font-size: 32px;
+.right-button {
+    align-self: flex-end;
+    font-size: 16px;
 }
 
 .tiny-button {
     font-size: 16px;
-    padding: 7px 7px;
+    padding: 7px;
 }
 
 .small-button {
@@ -87,18 +101,20 @@ input {
 }
 
 .small-input {
-    align-items: stretch;
+    background-color: white;
     font-size: 16px;
     padding: 7px 7px;
     width: auto;
 }
 
 .box {
-    align-items: stretch;
-    border-color: #FF595E;
+    border-color: black;
     border-style: solid;
     border-width: 2px;
-    background-color: #6A4C93;
+    border-radius: 25px;
+    background-color: #FFCA3A;
+    padding: 16px;
+    scrollbar-color: black #FFCA3A;
     display: flex;
     flex-direction: column;
     height: 64vh;
@@ -108,7 +124,6 @@ input {
 .messages {
     flex: 1;
     overflow-y: scroll;
-    width: 100%;
 }
 
 .container {

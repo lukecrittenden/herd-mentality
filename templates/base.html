@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8" name="viewport" content="width=device-width, initial-scale=1"/>
     <title>Herd Mentality</title>
+    <link rel="icon" type="image/x-icon" href="static/images/favicon.ico">
     <link rel="stylesheet"
           href="{{url_for('static', filename='css/style.css')}}" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"
@@ -13,7 +14,8 @@
 </head>
 <body>
     <div class="content">
-        <a><button onclick="history.back()" class="back-button">&#8617</button></a>
+        <a><button onclick="history.back()" class="small-button">&#8617</button></a>
+        <a href="{{url_for('rules')}}"><button class="small-button">Rules</button></a>
         {% block content %} {% endblock %}
     </div>
 </body>

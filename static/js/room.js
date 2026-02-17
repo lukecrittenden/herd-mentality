@@ -25,12 +25,14 @@ const stageHandlers = {
 };
 
 function refreshContainers(stage) {
+    clearActiveTimer();
     menuContainer.innerHTML = "";
     mainContainer.innerHTML = "";
+    // Calls the stageHandler function for the current stage
     (stageHandlers[stage] || (() => {}))();
 }
 
-// Create element utility function
+// Element utility function
 function createElement(type, {id, text, className, props = {}, events = {}} = {}, appendTo) {
     const el = document.createElement(type);
     if (id) {
@@ -42,7 +44,9 @@ function createElement(type, {id, text, className, props = {}, events = {}} = {}
     if (className) {
         el.className = className;
     }
-    Object.assign(el, props)
+    // Assigns properties to element
+    Object.assign(el, props);
+    // Adds events to element
     for (const evName in events) {
         const handler = events[evName];
         el.addEventListener(evName, handler);
@@ -63,62 +67,81 @@ function dragOverHandler(ev) {
 
 function dropHandler(ev) {
     ev.preventDefault();
-    const groupDiv = ev.target.closest(".group-div")
-    const user = ev.dataTransfer.getData("text/plain");
+    // Gets the closest group div to the drop location
+    const groupDiv = ev.target.closest(".group-div");
+    const userId = ev.dataTransfer.getData("text/plain");
+    const draggedEl = document.getElementById(userId);
+    const parentGroupDiv = draggedEl.closest(".group-div");
+    const parentGroupKey = parentGroupDiv.dataset.groupKey;
     let response;
-    // TODO: Change code so it gets parent id instead of looping though all responses
-    for (const group in state.matchedResponses) {
-        const numberOfResponsesInGroup = state.matchedResponses[group].length;
-        for (let i = 0; i < numberOfResponsesInGroup; i++) {
-            if (state.matchedResponses[group][i][0] === user) {
-                response = state.matchedResponses[group][i][1];
-                // Delete user-response pair from group
-                state.matchedResponses[group].splice(i, 1)
-                // Delete group if empty
-                if (state.matchedResponses[group].length === 0) {
-                    delete state.matchedResponses[group];
-                }
+    // Remove from previous group
+    if (parentGroupKey && state.matchedResponses[parentGroupKey]) {
+        const groupArray = state.matchedResponses[parentGroupKey];
+        let index = -1;
+        for (let i = 0; i < groupArray.length; i++) {
+            const user = groupArray[i][0];
+            if (user === userId) {
+                index = i;
+                break;
+            }
+        }
+        if (index !== -1) {
+            response = groupArray[index][1];
+            groupArray.splice(index, 1);
+            // Delete group if empty
+            if (groupArray.length === 0) {
+                delete state.matchedResponses[parentGroupKey];
             }
         }
     }
-    // If target group is empty, create a new group in currentMatchedResponses
-    if (groupDiv.innerHTML === "") {
-        const key = Date.now().toString();
-        state.matchedResponses[key] = [[user, response]];
-    } else {
-        // Otherwise, append to existing group
-        const targetGroup = groupDiv.dataset.groupKey;
-        state.matchedResponses[targetGroup].push([user, response]);
-    }
+    // Add to new group
+    if (response !== undefined) {
+        if (groupDiv.innerHTML === "") {
+            const key = Date.now().toString();
+            state.matchedResponses[key] = [[userId, response]];
+        } else {
+            const targetGroup = groupDiv.dataset.groupKey;
+            state.matchedResponses[targetGroup].push([userId, response]);
+        }
     refreshContainers(state.stage);
+    }
 }
 
 function copyLink() {
-    const link = window.location.href + "/" + code
+    // Copy room link to clipboard
+    const link = window.location.href + "/" + code;
     navigator.clipboard.writeText(link);
+}
+
+let activeTimer = null;
+
+// Ensures only one timer can exist at a time
+function clearActiveTimer() {
+    if (activeTimer) {
+        clearInterval(activeTimer);
+        activeTimer = null;
+    }
 }
 
 function renderLobby() {
     if (currentUser === currentHost) {
-        const hostMenu = createElement("div", {id: "host-menu", className: "centered-div"}, menuContainer)
-        const innerDiv = createElement("div", {}, hostMenu)
+        const hostMenu = createElement("div", {id: "host-menu", className: "centered-div"}, menuContainer);
+        const innerDiv = createElement("div", {}, hostMenu);
         createElement("button", {
                 text: "Start Game", className: "small-button",
                 events: {click: () => socket.emit("start-game")}
             }, innerDiv
         );
-        // Not implemented yet
-        createElement("button", {text: "Select Custom Questions", className: "small-button"}, innerDiv);
         createElement("button", {
                 text: "Change Time Per Question [" + timePerQuestion + "]",
                 className: "small-button", events: {click: () => socket.emit("change-time-per-question")}
             }, innerDiv
         );
-        const link = window.location.href + "/" + code
+        const link = window.location.href + "/" + code;
         createElement("button", {className: "small-button", text: "Copy Link", props: {href: link},
             events: {click: () => copyLink()}}, innerDiv
         );
-        createElement("p", {}, hostMenu)
+        createElement("p", {}, hostMenu);
     } else {
         const userMenu = createElement("div", {id: "user-menu", className: "centered-div"}, menuContainer);
         createElement("p", {text: "Waiting for the host to start the game", className: "red-text"}, userMenu);
@@ -126,8 +149,9 @@ function renderLobby() {
     createElement("h1", {text: "Room " + code}, mainContainer);
     createElement("div", {id: "messages", className: "messages"}, mainContainer);
     createElement("label", {id: "label", props: {htmlFor: "message"}}, mainContainer);
-    createElement("input", {id: "message", className: "message-input", props: {
+    createElement("input", {id: "message", className: "small-input", props: {
         placeholder: "[message]", type: "text"}, events: {"keypress": function(e) {
+            // Sends message to backend when enter key is pressed
             if (e.key === "Enter") {
                 socket.send({data: e.target.value});
                 e.target.value = "";
@@ -138,9 +162,10 @@ function renderLobby() {
 
 function renderQuestions() {
     if (currentUser === currentHost) {
-        const hostMenu = createElement("div", {id: "host-menu", className: "centered-div"}, menuContainer)
-        const innerDiv = createElement("div", {}, hostMenu)
+        const hostMenu = createElement("div", {id: "host-menu", className: "centered-div"}, menuContainer);
+        const innerDiv = createElement("div", {}, hostMenu);
         createElement("button", {text: "End Game", className: "small-button",
+            // Click the "End Game" button sends message to backend
             events: {click: () => socket.emit("end-game")}}, innerDiv
         );
     }
@@ -152,12 +177,14 @@ function renderQuestions() {
     const timerText = createElement("p", {id: "timer-text", text: timePerQuestion, className: "red-text"},
         timerDiv
     );
+    // Sets the duration of the timer to timePerQuestion
     let timeLeft = timePerQuestion;
-    let timerInterval = setInterval(() => {
+    activeTimer = setInterval(() => {
         timeLeft--;
         timerText.textContent = timeLeft;
         if (timeLeft <= 0 || state.allUsersResponded) {
-            clearInterval(timerInterval)
+            // Stops timer
+            clearActiveTimer();
             // Only sends when user is host to ensure that responses are only matched on
             if (currentUser === currentHost && state.stage === "questions") {
                 socket.emit("match-responses");
@@ -165,12 +192,12 @@ function renderQuestions() {
         }
     }, 1000);
     createElement("h1", {text: state.question}, mainContainer)
-    const inputBox = createElement("input", {id: "input", props: {placeholder: "[response]"},
+    const inputBox = createElement("input", {id: "input", className: "response", props: {placeholder: "[response]"},
         events: {"keypress": function(e) {
             if (e.key === "Enter") {
                 const userResponse = e.target.value;
                 socket.emit("answer-question", currentUser, userResponse);
-                mainContainer.removeChild(e.target);
+                mainContainer.removeChild(e.target); // Removes inputBox
                 createElement("p", {text: "Your response: " + userResponse}, mainContainer);
             }}
     }}, mainContainer
@@ -193,21 +220,23 @@ function renderMatchedResponses() {
             events: {click: () => socket.emit("end-game")}}, innerDiv
         );
     }
+    createElement("h1", {text: state.question}, mainContainer);
     const div = createElement("div", {id: "user-menu", className: "centered-div"}, menuContainer);
     let textContent;
     if (currentUser === state.cattleWrangler) {
         textContent = "You are the Cattle Wrangler: drag and drop to match similar responses";
     } else {
+        // Creates a list of all the users who responded and their responses
+        const ul = createElement("ul", {id: "ul"}, mainContainer);
+        for (let key in state.responses) {
+            createElement("li", {text: key + " :) said '" + state.responses[key] + "' "}, ul);
+        }
         textContent = "Waiting for Cattle Wrangler";
     }
     createElement("p", {text: textContent, className: "red-text"}, div);
-    createElement("h1", {text: state.question}, mainContainer);
-    const ul = createElement("ul", {id: "ul"}, mainContainer);
-    for (let key in state.responses) {
-        createElement("li", {text: key + " :) said '" + state.responses[key] + "' "}, ul);
-    }
     if (currentUser === state.cattleWrangler) {
         for (const group in state.matchedResponses) {
+            // Creates a box for matching responses
             const groupDiv = createElement("div", {
                     className: "group-div", events: {drop: dropHandler, dragover: dragOverHandler}
                 }, mainContainer
@@ -217,6 +246,7 @@ function renderMatchedResponses() {
             for (let i = 0; i < numberOfResponsesInGroup; i++) {
                 const user = state.matchedResponses[group][i][0];
                 const response = state.matchedResponses[group][i][1];
+                // Creates draggable text elements
                 createElement("p", {
                         id: user, text: "[" + user + "] " + response, props: {draggable: true},
                         events: {dragstart: dragStartHandler}
@@ -242,30 +272,30 @@ function renderMatchedResponses() {
 
 function renderFinalResults() {
     if (currentUser === currentHost) {
-        const hostMenu = createElement("div", {id: "host-menu", className: "centered-div"}, menuContainer)
-        const innerDiv = createElement("div", {}, hostMenu)
+        const hostMenu = createElement("div", {id: "host-menu", className: "centered-div"}, menuContainer);
+        const innerDiv = createElement("div", {}, hostMenu);
         createElement("button", {text: "End Game", className: "small-button",
             events: {click: () => socket.emit("end-game")}}, innerDiv
         );
+        createElement("p", {}, hostMenu);
     }
     let resultText, winnersText;
+    // If current user is included on the winners list
     if (state.winners.includes(currentUser)) {
         resultText = "You won :)";
     } else {
         resultText = "You lost :(";
     }
     if (state.winners.length === 1) {
+        // One winner
         winnersText = state.winners[0] + " won the game!";
     }
     else {
-        // TODO: Make winners list look like A, B, and C; not A, B, C,
-        winnersText = "The Winners are ";
-        for (let i = 0; i < state.winners.length; i++) {
-            winnersText = winnersText.concat(state.winners[i].toString(), ", ");
-        }
+        // Multiple winners
+        winnersText = "The Winners are " + state.winners.join(", ");
     }
     createElement("h1", {text: resultText}, mainContainer);
-    createElement("p", {text: winnersText}, mainContainer)
+    createElement("p", {text: winnersText}, mainContainer);
 }
 
 refreshContainers(state.stage);
@@ -293,7 +323,7 @@ socket.on("add-users", function addUser(data) {
             displayName += "\uD83D\uDC37";
         }
         if (state.stage !== "lobby") {
-            displayName += " [" + state.scores[item] + "]";
+            displayName += " [" + state.scores[item] + "] ";
         }
         const div = createElement("div", {id: "user: " + item, text: displayName}, usersContainer)
         if (currentUser === currentHost && item !== currentHost) {

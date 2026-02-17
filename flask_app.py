@@ -1,23 +1,13 @@
-# TODO: Add different background images for different sections
-# TODO: Add pop-up message when user deletes account
-# TODO: Check out security issues surrounding user uploads
-# TODO: Change Flask project structure
-
-"""
-Feedback / suggestions:
-- more interesting question bank - "the fun of the game is dictated by the quality of its questions"
-- players choose the funnest answer and that player gets rewarded one point
-"""
-
-from os import path
+from os import path, getenv
 from flask import Flask, flash, render_template, request, session, redirect, url_for
 from flask_socketio import join_room, leave_room, emit, SocketIO
 from utils import *
 from db import *
 from dotenv import load_dotenv
+from string import ascii_uppercase
 
 class Server:
-    def __init__(self, name):
+    def __init__(self, name, database_manager):
         # Stores rooms as key-value pairs: the key is the room code and the value is the room object
         self.__rooms = {}
         self.__app = Flask(name)
@@ -26,31 +16,44 @@ class Server:
         load_dotenv()
         keys = ["SECRET_KEY", "PEPPER_KEY", "RECAPTCHA_SITE_KEY", "RECAPTCHA_SECRET_KEY"]
         for key in keys:
-            self.__app.config[key] = os.getenv(key)
+            self.__app.config[key] = getenv(key)
+        # Secure app configurations
+        self.__app.config.update(
+            SESSION_COOKIE_SECURE=True,
+            SESSION_COOKIE_HTTPONLY=True,
+            SESSION_COOKIE_SAMESITE='Lax',
+            MAX_CONTENT_LENGTH=1 * 1024 * 1024, # Limits file uploads to 1MB
+            ROOM_CODE_LENGTH=4,
+            MAX_MEMBERS=10
+        )
+        # Create manager objects
+        self.__database_manager = database_manager
+        self.__recaptcha_manager = RecaptchaManager(self.__app.config["RECAPTCHA_SECRET_KEY"])
 
-        # TODO: Check if both "POST" and "GET" are needed
         @self.__app.route("/", methods=["POST", "GET"])
         def home():
             # Check if signed in to an account
             if "user" in session:
-                # Delete session keys for room and name
                 if "room" in session:
+                    # Delete session key for room
                     session.pop("room")
                 if request.method == "POST":
                     code = request.form.get("code").upper()
-                    create = request.form.get("create", False)
+                    create = request.form.get("create", False) # If the value does not exist, create defaults to False
                     user = session.get("user")
                     error = None
                     if create == "":
                         # Create a new room
-                        code = generate_unique_code(4, self.__rooms)
-                        self.__rooms[code] = Room(user, code, get_custom_questions(session.get("user")))
+                        code = (Server.generate_unique_code(
+                            self.__app.config["ROOM_CODE_LENGTH"], self.__rooms.keys()))
+                        self.__rooms[code] = Room(user, code,
+                                                  database_manager.get_custom_questions(session.get("user")))
                         self.__app.logger.info("Room created - Room " + code)
                     elif code == "":
                         error = "Please enter a room code"
                     elif code not in self.__rooms.keys():
                         error = "Room does not exist"
-                    elif len(self.__rooms[code].get_members()) >= 20:
+                    elif len(self.__rooms[code].get_members()) >= self.__app.config["MAX_MEMBERS"]:
                         error = "Room full"
                     if error:
                         return render_template("signed_in_home.html", error=error, code=code)
@@ -75,51 +78,57 @@ class Server:
                 elif not password:
                     error = "Please enter a password"
                 # Checks that the user has completed the reCAPTCHA successfully
-                elif not captcha_response or not is_human(captcha_response, self.__app.config["RECAPTCHA_SECRET_KEY"]):
+                elif not captcha_response or not self.__recaptcha_manager.is_human(captcha_response):
                     error = "Please complete the reCAPTCHA"
-                elif check_username_exists(username):
+                elif self.__database_manager.check_username_exists(username):
                     # Check that users password matches the password stored in the database as a hash
                     pepper = self.__app.config["PEPPER_KEY"]
-                    if check_hash_match(password, get_hash_and_salt(username), pepper):
+                    if PasswordManager.check_hash_match(password, self.__database_manager.get_hash_and_salt(username),
+                                                        pepper):
                         session["user"] = username
                     else:
                        error = "Password or username is incorrect"
                 else:
                     error = "Password or username is incorrect"
                 if error:
+                    # Logs IP address and error
                     self.__app.logger.info(f"{request.remote_addr} - {error}")
-                    return render_template("account/login.html", error=error, username=username, password=password,
-                                           site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
+                    return render_template("account/login.html", error=error, username=username,
+                                           password=password, site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
                 else:
                     return redirect(url_for("home"))
-            return render_template("account/login.html", site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
+            return render_template("account/login.html",
+                                   site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
 
         @self.__app.route("/register", methods=["POST", "GET"])
         def register():
             session.clear()
             if request.method == "POST":
-                error = None
                 username = request.form.get("username")
                 password = request.form.get("password")
                 captcha_response = request.form['g-recaptcha-response']
                 if not username:
                     error = "Please enter a username"
-                elif not password:
-                    error = "Please enter a password"
-                elif check_username_exists(username):
+                elif self.__database_manager.check_username_exists(username):
                     error = "Account with that username already exists"
-                elif not captcha_response or not is_human(captcha_response, self.__app.config["RECAPTCHA_SECRET_KEY"]):
-                    error = "Please complete the reCAPTCHA"
+                else:
+                    error = PasswordManager.validate_password(username, password)
+                    if not error:
+                        if not captcha_response or not self.__recaptcha_manager.is_human(captcha_response):
+                            error = "Please complete the reCAPTCHA"
                 if error:
+                    # Logs IP address and error
                     self.__app.logger.info(f"{request.remote_addr} - {error}")
-                    return render_template("account/register.html", username=username, password=password, error=error,
+                    return render_template("account/register.html", username=username,
+                                           password=password, error=error,
                                            site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
                 else:
                     # Add user and log message if user created successfully
                     pepper = self.__app.config["PEPPER_KEY"]
-                    self.__app.logger.info(add_user(username, password, pepper))
+                    self.__app.logger.info(self.__database_manager.add_user(username, password, pepper))
                     return redirect(url_for("home"))
-            return render_template("account/register.html", site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
+            return render_template("account/register.html",
+                                   site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
 
         @self.__app.route("/account", methods=["POST", "GET"])
         def account():
@@ -131,28 +140,29 @@ class Server:
                         # Clearing the session removes "user" from the session, logging out the user
                         session.clear()
                     elif request.form["submit-button"] == "delete":
-                        self.__app.logger.info(delete_user(session.get("user")))
+                        # Deletes user from database and logs response
+                        self.__app.logger.info(self.__database_manager.delete_user(session.get("user")))
                         session.clear()
                     return redirect(url_for("home"))
-                user_statistics = get_user_statistics(session.get("user"))
+                user_statistics = self.__database_manager.get_user_statistics(session.get("user"))
                 if user_statistics[2] + user_statistics[3] == 0:
                     # If no wins or losses, add "N/A" to tuple to avoid divide by 0 error
                     user_statistics += ("N/A",)
                 else:
                     # Add W/L ratio to user_statistics tuple
                     user_statistics += ((user_statistics[2]/(user_statistics[2] + user_statistics[3])) * 100,)
+                date_created = self.__database_manager.get_date_user_created(session.get("user"))
                 return render_template("account/account.html",  user=session.get("user"),
-                                       account_created=get_date_user_created(session.get("user")),
+                                       account_created=date_created,
                                        user_statistics=user_statistics)
             else:
                 return redirect(url_for("home"))
 
         @self.__app.route("/custom-questions", methods=["POST", "GET"])
         def custom_questions():
-            # TODO: Add error if no file uploaded
             if "user" in session:
                 if request.method == "POST":
-                    # https://flask.palletsprojects.com/en/stable/patterns/fileuploads/
+                    # Documentation: https://flask.palletsprojects.com/en/stable/patterns/fileuploads/
                     if request.form["submit-button"] == "upload":
                         # Check if the post request has the file part
                         if "file" not in request.files:
@@ -164,10 +174,19 @@ class Server:
                             flash("No selected file")
                             return redirect(request.url)
                         if file and file.filename.endswith(".json"):
-                            questions_json = json.load(file)
-                            self.__app.logger.info(create_custom_questions(session.get("user"), questions_json))
+                            try:
+                                # Load custom json file
+                                questions_json = json.load(file)
+                                # Add custom questions to database and log result
+                                self.__app.logger.info(
+                                    self.__database_manager.create_custom_questions(session.get("user"),questions_json))
+                            except json.JSONDecodeError:
+                                flash("Uploaded file is not valid JSON")
+                                return redirect(request.url)
                     elif request.form["submit-button"] == "reset":
-                        self.__app.logger.info(reset_custom_questions(session.get("user")))
+                        # Reset questions belonging to the user and log the result
+                        self.__app.logger.info(
+                            self.__database_manager.reset_custom_questions(session.get("user")))
                     return redirect(url_for("home"))
                 return render_template("custom_questions.html")
             else:
@@ -175,6 +194,7 @@ class Server:
 
         @self.__app.route("/room", methods=["POST", "GET"])
         def room():
+            # If the user is not signed in or the remove does not exist, the user is returned to the homepage
             if session.get("user") is None or session.get("room") not in self.__rooms.keys():
                 return redirect(url_for("home"))
             room = self.__rooms[session.get("room")]
@@ -188,20 +208,30 @@ class Server:
             session["room"] = code
             return redirect(url_for("room"))
 
+        @self.__app.route("/rules")
+        def rules():
+            return render_template("rules.html")
+
         @self.__socketio.on("message")
         def message(data):
+            # If room exists
             if session.get("room") in self.__rooms.keys():
+                # Adds message to room
                 self.__rooms[session.get("room")].add_message(data["data"], session.get("user"))
             else:
                 return redirect(url_for("room"))
 
         @self.__socketio.on("connect")
         def connect():
+            # If room of user not in session
             if not session.get("room") or not session.get("user"):
-                return redirect(url_for("room"))
+                # Redirect user home
+                return redirect(url_for("home"))
+            # If room does not exist
             if session.get("room") not in self.__rooms.keys():
                 leave_room(session.get("room"))
                 return redirect(url_for("home"))
+            # Add the user to the room
             join_room(session.get("room"))
             room = self.__rooms[session.get("room")]
             room.add_member(session.get("user"))
@@ -210,7 +240,6 @@ class Server:
         @self.__socketio.on("disconnect")
         def disconnect():
             if session.get("room") in self.__rooms.keys():
-                leave_room(session.get("room"))
                 self.__rooms[session.get("room")].remove_member(session.get("user"))
                 self.__delete_room_if_empty(session.get("room"))
 
@@ -218,11 +247,9 @@ class Server:
         def kick_member(user):
             if session.get("room") in self.__rooms.keys():
                 self.__rooms[session.get("room")].kick_member(user)
-                self.__delete_room_if_empty(session.get("room"))
 
         @self.__socketio.on("start-game")
         def start_game():
-            # TODO: Only display game started / ended when game actually starts / ends
             self.__app.logger.info("Game started - Room " + session.get("room"))
             self.__rooms[session.get("room")].start_game()
 
@@ -249,9 +276,22 @@ class Server:
 
         @self.__socketio.on("submit-matched-responses")
         def submit_matched_responses(matched_responses):
-            self.__rooms[session.get("room")].submit_matched_responses(matched_responses)
+            self.__rooms[session.get("room")].submit_matched_responses(matched_responses, self.__database_manager)
+
+    @staticmethod
+    def generate_unique_code(length, room_keys):
+        # Creates a random fixed-length string of uppercase characters
+        while True:
+            code = ""
+            for _ in range(length):
+                code += random.choice(ascii_uppercase)
+            if code not in room_keys:
+                # If code does already exist in rooms
+                break
+        return code
 
     def __delete_room_if_empty(self, code):
+        # If room has no members
         if not self.__rooms[code].get_members():
             self.__app.logger.info("Room deleted - Room " + code)
             del self.__rooms[code]
@@ -281,7 +321,7 @@ class Room:
             self.__questions.append(question)
         for question in custom_questions:
             self.__questions.append(question)
-
+        self.__game_manager = GameManager(self.__questions)
 
     def __refresh_users_list(self):
         users_list = []
@@ -324,7 +364,7 @@ class Room:
             emit("message", chat_message, to=self.__code)
 
     def add_member(self, user):
-        self.__members.append(Member(user))
+        self.__members.append(Player(user))
         emit("message", user + " has entered the room", to=self.__code)
         self.__refresh_users_list()
 
@@ -333,9 +373,10 @@ class Room:
         for member in self.__members:
             if member.get_user() == user:
                 self.__members.remove(member)
+                leave_room(session.get("room"))
         # If the host leaves the room while other users are in it, a user is randomly assigned as the host
         if self.__host == user and len(self.__members) != 0:
-            self.__host = select_random_member(self.__members).get_user()
+            self.__host = GameManager.select_random_member(self.__members).get_user()
             emit("message", self.__host + " is now the host", to=self.__code)
             emit("update-host", self.__host, to=self.__code)
         self.__refresh_users_list()
@@ -349,16 +390,16 @@ class Room:
             # If stage has changed, display game start message and questions
             if self.__stage != "questions":
                 self.__stage = "questions"
-                self.__cattle_wrangler = select_random_member(self.__members)
+                self.__cattle_wrangler = GameManager.select_random_member(self.__members)
                 self.__reset_scores()
                 self.__reset_responses()
                 self.__winners = None
-                emit("message", "GAME STARTED")
+                emit("message", "GAME STARTED", to=self.__code)
                 emit("update-scores", [self.__get_all_scores(), self.__pink_cow_token], to=self.__code)
                 self.next_question()
                 self.__refresh_users_list()
         else:
-            emit("message", "3 OR MORE PLAYERS NEEDED TO START THE GAME >:(", to=self.__code)
+            emit("message", "3 or more players needed to start the game!", to=self.__code)
 
     def end_game(self):
         self.__stage = "lobby"
@@ -381,6 +422,8 @@ class Room:
         else:
             self.__time_per_question = 10
         emit("change-time-per-question", self.__time_per_question, to=self.__code)
+        # Reload previous messages: otherwise they will be reset by room refresh
+        self.load_previous_messages()
 
     def match_responses(self):
         responses = self.__get_all_responses()
@@ -388,17 +431,19 @@ class Room:
             self.next_question(no_responses=True)
         else:
             # The copy function ensures that the function does not mutate the original members list
-            self.__cattle_wrangler = select_cattle_wrangler(self.__members.copy(), self.__cattle_wrangler)
+            self.__cattle_wrangler = GameManager.select_cattle_wrangler(self.__members.copy(), self.__cattle_wrangler)
             self.__stage = "match_responses"
-            matched_responses = automatically_match_responses(responses)
-            emit("match-responses", [responses, matched_responses, self.__cattle_wrangler.get_user()], to=self.__code)
+            matched_responses = GameManager.automatically_match_responses(responses)
+            emit("match-responses", [responses, matched_responses, self.__cattle_wrangler.get_user()],
+                 to=self.__code)
 
     def next_question(self, no_responses=False):
-        emit("questions", [select_random_question(self.__questions), no_responses], to=self.__code)
+        emit("questions", [self.__game_manager.select_random_question(self.__questions), no_responses],
+             to=self.__code)
         self.__reset_responses()
 
-    def submit_matched_responses(self, matched_responses):
-        round_results, self.__pink_cow_token = calculate_results(matched_responses)
+    def submit_matched_responses(self, matched_responses, database_manager):
+        round_results, self.__pink_cow_token = GameManager.calculate_results(matched_responses)
         for username in round_results:
             for member in self.__members:
                 if username == member.get_user():
@@ -406,7 +451,7 @@ class Room:
         scores = self.__get_all_scores()
         emit("update-scores", [scores, self.__pink_cow_token], to=self.__code)
         self.__refresh_users_list()
-        self.__winners = check_winners(scores)
+        self.__winners = GameManager.check_winners(scores)
         if self.__winners:
             self.__stage = "final_results"
             emit("final-results", [scores, self.__winners], to=self.__code)
@@ -415,7 +460,7 @@ class Room:
                     winner = True
                 else:
                     winner = False
-                update_user_statistics(member.get_user(), member.get_score(), winner)
+                database_manager.update_user_statistics(member.get_user(), member.get_score(), winner)
         else:
             self.next_question()
 
@@ -452,13 +497,18 @@ class Room:
 
 
 class Member:
-    def __init__(self, user):
-        self.__user = user
-        self.__score = 0
-        self.__response = None
+    def __init__(self, username):
+        self.__username = username
 
     def get_user(self):
-        return self.__user
+        return self.__username
+
+
+class Player(Member):
+    def __init__(self, username):
+        super().__init__(username)
+        self.__score = 0
+        self.__response = None
 
     def get_response(self):
         return self.__response
@@ -467,6 +517,7 @@ class Member:
         return self.__score
 
     def add_score(self, value):
+        # Value must be int
         if isinstance(value, int):
             self.__score += value
         else:
@@ -476,7 +527,7 @@ class Member:
         self.__score = 0
 
     def set_response(self, value):
-        # Response must be a string or None
+        # Response must be string or None
         if isinstance(value, (str, type(None))):
             self.__response = value
         else:
@@ -484,9 +535,10 @@ class Member:
 
 
 def main():
+    database_manager = DatabaseManager()
     if not path.exists("users.db"):
-        print(create_database())
-    server = Server(__name__)
+        print(database_manager.create_database())
+    server = Server(__name__, database_manager)
     server.run(host='0.0.0.0', port=5000, debug=True)
 
 

@@ -3,7 +3,7 @@
 <form method="post">
     <div class="centered-div">
         <p class="red-text">Signed in as: {{user}}<br>Account created: {{account_created}}</p>
-        <div class="stats-box">
+        <div class="alternative-box">
             <ul>
                 <li>Games played: {{user_statistics[0]}}</li>
                 <li>Total tokens: {{user_statistics[1]}}</li>
@@ -16,7 +16,8 @@
             Upload Custom Questions
         </button>
         <button class="small-button" name="submit-button" type="submit" value="log-out">Log out</button>
-        <button class="small-red-button" name="submit-button" type="submit" value="delete">Delete account</button>
+        <button class="small-red-button" name="submit-button" type="submit" value="delete"
+                onclick="return confirm('Are you sure you want to delete your account?')">Delete account</button>
     </div>
 </form>
 {% endblock %}
