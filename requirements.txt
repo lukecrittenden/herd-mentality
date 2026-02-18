@@ -1,0 +1,6 @@
+Flask>=3.1.2
+Flask-SocketIO>=5.6.0
+python-dotenv>=1.2.1
+requests>=2.32.5
+gunicorn>=25.1.0
+eventlet>=0.40.4
