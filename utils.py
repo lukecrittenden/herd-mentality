@@ -55,7 +55,6 @@ class GameManager:
     def select_random_member(members):
         return random.choice(members)
 
-    @staticmethod
     def select_random_question(self):
         return random.choice(self.__questions)
 

@@ -439,8 +439,7 @@ class Room:
                  to=self.__code)
 
     def next_question(self, no_responses=False):
-        emit("questions", [self.__game_manager.select_random_question(self.__questions), no_responses],
-             to=self.__code)
+        emit("questions", [self.__game_manager.select_random_question(), no_responses], to=self.__code)
         self.__reset_responses()
 
     def submit_matched_responses(self, matched_responses, database_manager):
