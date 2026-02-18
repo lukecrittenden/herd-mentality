@@ -537,8 +537,6 @@ class Player(Member):
 
 def main():
     database_manager = DatabaseManager()
-    if not path.exists("users.db"):
-        print(database_manager.create_database())
     server = Server(__name__, database_manager)
     server.run(host='0.0.0.0', port=5000, debug=True)
 

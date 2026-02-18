@@ -9,6 +9,8 @@ class DatabaseManager:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self.__schema_path = os.path.join(base_dir, "schema.sql")
         self.__db_path = os.path.join(base_dir, "users.db")
+        if not os.path.exists(self.__db_path):
+            self.create_database()
 
     def __execute_action(self, sql, *args):
         con = connect(self.__db_path)
