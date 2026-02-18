@@ -10,15 +10,16 @@ class Server:
     def __init__(self, name, database_manager):
         # Stores rooms as key-value pairs: the key is the room code and the value is the room object
         self.__rooms = {}
-        self.__app = Flask(name)
-        self.__socketio = SocketIO(self.__app)
+        # Variables should be public so they can be accessed by WSGI file
+        self.app = Flask(name)
+        self.socketio = SocketIO(self.app)
         # Sets keys for server
         load_dotenv()
         keys = ["SECRET_KEY", "PEPPER_KEY", "RECAPTCHA_SITE_KEY", "RECAPTCHA_SECRET_KEY"]
         for key in keys:
-            self.__app.config[key] = getenv(key)
+            self.app.config[key] = getenv(key)
         # Secure app configurations
-        self.__app.config.update(
+        self.app.config.update(
             SESSION_COOKIE_SECURE=True,
             SESSION_COOKIE_HTTPONLY=True,
             SESSION_COOKIE_SAMESITE='Lax',
@@ -28,9 +29,9 @@ class Server:
         )
         # Create manager objects
         self.__database_manager = database_manager
-        self.__recaptcha_manager = RecaptchaManager(self.__app.config["RECAPTCHA_SECRET_KEY"])
+        self.__recaptcha_manager = RecaptchaManager(self.app.config["RECAPTCHA_SECRET_KEY"])
 
-        @self.__app.route("/", methods=["POST", "GET"])
+        @self.app.route("/", methods=["POST", "GET"])
         def home():
             # Check if signed in to an account
             if "user" in session:
@@ -45,15 +46,15 @@ class Server:
                     if create == "":
                         # Create a new room
                         code = (Server.generate_unique_code(
-                            self.__app.config["ROOM_CODE_LENGTH"], self.__rooms.keys()))
+                            self.app.config["ROOM_CODE_LENGTH"], self.__rooms.keys()))
                         self.__rooms[code] = Room(user, code,
                                                   database_manager.get_custom_questions(session.get("user")))
-                        self.__app.logger.info("Room created - Room " + code)
+                        self.app.logger.info("Room created - Room " + code)
                     elif code == "":
                         error = "Please enter a room code"
                     elif code not in self.__rooms.keys():
                         error = "Room does not exist"
-                    elif len(self.__rooms[code].get_members()) >= self.__app.config["MAX_MEMBERS"]:
+                    elif len(self.__rooms[code].get_members()) >= self.app.config["MAX_MEMBERS"]:
                         error = "Room full"
                     if error:
                         return render_template("signed_in_home.html", error=error, code=code)
@@ -65,7 +66,7 @@ class Server:
             else:
                 return render_template("signed_out_home.html")
 
-        @self.__app.route("/login", methods=["POST", "GET"])
+        @self.app.route("/login", methods=["POST", "GET"])
         def login():
             session.clear()
             if request.method == "POST":
@@ -82,7 +83,7 @@ class Server:
                     error = "Please complete the reCAPTCHA"
                 elif self.__database_manager.check_username_exists(username):
                     # Check that users password matches the password stored in the database as a hash
-                    pepper = self.__app.config["PEPPER_KEY"]
+                    pepper = self.app.config["PEPPER_KEY"]
                     if PasswordManager.check_hash_match(password, self.__database_manager.get_hash_and_salt(username),
                                                         pepper):
                         session["user"] = username
@@ -92,15 +93,15 @@ class Server:
                     error = "Password or username is incorrect"
                 if error:
                     # Logs IP address and error
-                    self.__app.logger.info(f"{request.remote_addr} - {error}")
+                    self.app.logger.info(f"{request.remote_addr} - {error}")
                     return render_template("account/login.html", error=error, username=username,
-                                           password=password, site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
+                                           password=password, site_key=self.app.config["RECAPTCHA_SITE_KEY"])
                 else:
                     return redirect(url_for("home"))
             return render_template("account/login.html",
-                                   site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
+                                   site_key=self.app.config["RECAPTCHA_SITE_KEY"])
 
-        @self.__app.route("/register", methods=["POST", "GET"])
+        @self.app.route("/register", methods=["POST", "GET"])
         def register():
             session.clear()
             if request.method == "POST":
@@ -118,19 +119,19 @@ class Server:
                             error = "Please complete the reCAPTCHA"
                 if error:
                     # Logs IP address and error
-                    self.__app.logger.info(f"{request.remote_addr} - {error}")
+                    self.app.logger.info(f"{request.remote_addr} - {error}")
                     return render_template("account/register.html", username=username,
                                            password=password, error=error,
-                                           site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
+                                           site_key=self.app.config["RECAPTCHA_SITE_KEY"])
                 else:
                     # Add user and log message if user created successfully
-                    pepper = self.__app.config["PEPPER_KEY"]
-                    self.__app.logger.info(self.__database_manager.add_user(username, password, pepper))
+                    pepper = self.app.config["PEPPER_KEY"]
+                    self.app.logger.info(self.__database_manager.add_user(username, password, pepper))
                     return redirect(url_for("home"))
             return render_template("account/register.html",
-                                   site_key=self.__app.config["RECAPTCHA_SITE_KEY"])
+                                   site_key=self.app.config["RECAPTCHA_SITE_KEY"])
 
-        @self.__app.route("/account", methods=["POST", "GET"])
+        @self.app.route("/account", methods=["POST", "GET"])
         def account():
             if "user" in session:
                 if request.method == "POST":
@@ -141,7 +142,7 @@ class Server:
                         session.clear()
                     elif request.form["submit-button"] == "delete":
                         # Deletes user from database and logs response
-                        self.__app.logger.info(self.__database_manager.delete_user(session.get("user")))
+                        self.app.logger.info(self.__database_manager.delete_user(session.get("user")))
                         session.clear()
                     return redirect(url_for("home"))
                 user_statistics = self.__database_manager.get_user_statistics(session.get("user"))
@@ -158,7 +159,7 @@ class Server:
             else:
                 return redirect(url_for("home"))
 
-        @self.__app.route("/custom-questions", methods=["POST", "GET"])
+        @self.app.route("/custom-questions", methods=["POST", "GET"])
         def custom_questions():
             if "user" in session:
                 if request.method == "POST":
@@ -178,21 +179,21 @@ class Server:
                                 # Load custom json file
                                 questions_json = json.load(file)
                                 # Add custom questions to database and log result
-                                self.__app.logger.info(
+                                self.app.logger.info(
                                     self.__database_manager.create_custom_questions(session.get("user"),questions_json))
                             except json.JSONDecodeError:
                                 flash("Uploaded file is not valid JSON")
                                 return redirect(request.url)
                     elif request.form["submit-button"] == "reset":
                         # Reset questions belonging to the user and log the result
-                        self.__app.logger.info(
+                        self.app.logger.info(
                             self.__database_manager.reset_custom_questions(session.get("user")))
                     return redirect(url_for("home"))
                 return render_template("custom_questions.html")
             else:
                 return redirect(url_for("home"))
 
-        @self.__app.route("/room", methods=["POST", "GET"])
+        @self.app.route("/room", methods=["POST", "GET"])
         def room():
             # If the user is not signed in or the remove does not exist, the user is returned to the homepage
             if session.get("user") is None or session.get("room") not in self.__rooms.keys():
@@ -203,16 +204,16 @@ class Server:
                                    host=room.get_host(), messages=room.get_messages())
 
         # Join room from link (requires user to be signed in)
-        @self.__app.route("/room/<code>")
+        @self.app.route("/room/<code>")
         def room_link(code):
             session["room"] = code
             return redirect(url_for("room"))
 
-        @self.__app.route("/rules")
+        @self.app.route("/rules")
         def rules():
             return render_template("rules.html")
 
-        @self.__socketio.on("message")
+        @self.socketio.on("message")
         def message(data):
             # If room exists
             if session.get("room") in self.__rooms.keys():
@@ -221,7 +222,7 @@ class Server:
             else:
                 return redirect(url_for("room"))
 
-        @self.__socketio.on("connect")
+        @self.socketio.on("connect")
         def connect():
             # If room of user not in session
             if not session.get("room") or not session.get("user"):
@@ -237,44 +238,44 @@ class Server:
             room.add_member(session.get("user"))
             room.load_previous_messages()
 
-        @self.__socketio.on("disconnect")
+        @self.socketio.on("disconnect")
         def disconnect():
             if session.get("room") in self.__rooms.keys():
                 self.__rooms[session.get("room")].remove_member(session.get("user"))
                 self.__delete_room_if_empty(session.get("room"))
 
-        @self.__socketio.on("kick-user")
+        @self.socketio.on("kick-user")
         def kick_member(user):
             if session.get("room") in self.__rooms.keys():
                 self.__rooms[session.get("room")].kick_member(user)
 
-        @self.__socketio.on("start-game")
+        @self.socketio.on("start-game")
         def start_game():
-            self.__app.logger.info("Game started - Room " + session.get("room"))
+            self.app.logger.info("Game started - Room " + session.get("room"))
             self.__rooms[session.get("room")].start_game()
 
-        @self.__socketio.on("end-game")
+        @self.socketio.on("end-game")
         def end_game():
-            self.__app.logger.info("Game ended - Room " + session.get("room"))
+            self.app.logger.info("Game ended - Room " + session.get("room"))
             self.__rooms[session.get("room")].end_game()
 
-        @self.__socketio.on("answer-question")
+        @self.socketio.on("answer-question")
         def answer_question(user, response):
             self.__rooms[session.get("room")].answer_question(user, response)
 
-        @self.__socketio.on("change-time-per-question")
+        @self.socketio.on("change-time-per-question")
         def change_time_per_question():
             self.__rooms[session.get("room")].change_time_per_question()
 
-        @self.__socketio.on("match-responses")
+        @self.socketio.on("match-responses")
         def match_responses():
             self.__rooms[session.get("room")].match_responses()
 
-        @self.__socketio.on("next-question")
+        @self.socketio.on("next-question")
         def next_question():
             self.__rooms[session.get("room")].next_question()
 
-        @self.__socketio.on("submit-matched-responses")
+        @self.socketio.on("submit-matched-responses")
         def submit_matched_responses(matched_responses):
             self.__rooms[session.get("room")].submit_matched_responses(matched_responses, self.__database_manager)
 
@@ -293,11 +294,11 @@ class Server:
     def __delete_room_if_empty(self, code):
         # If room has no members
         if not self.__rooms[code].get_members():
-            self.__app.logger.info("Room deleted - Room " + code)
+            self.app.logger.info("Room deleted - Room " + code)
             del self.__rooms[code]
 
     def run(self, host, port, debug):
-        self.__app.run(host=host, port=port, debug=debug)
+        self.app.run(host=host, port=port, debug=debug)
 
 
 class Room:
@@ -543,4 +544,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main() # Only for local development
