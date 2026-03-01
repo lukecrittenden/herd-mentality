@@ -1,10 +1,12 @@
-from os import path, getenv
+from os import getenv
 from flask import Flask, flash, render_template, request, session, redirect, url_for
 from flask_socketio import join_room, leave_room, emit, SocketIO
 from utils import *
 from db import *
 from dotenv import load_dotenv
 from string import ascii_uppercase
+
+# TODO: Fix user joining during game issue
 
 class Server:
     def __init__(self, name, database_manager):
@@ -39,11 +41,14 @@ class Server:
                     # Delete session key for room
                     session.pop("room")
                 if request.method == "POST":
+                    leaderboard = request.form.get("leaderboard", False)
                     code = request.form.get("code").upper()
                     create = request.form.get("create", False) # If the value does not exist, create defaults to False
                     user = session.get("user")
                     error = None
-                    if create == "":
+                    if leaderboard == "":
+                        return redirect(url_for("leaderboard"))
+                    elif create == "":
                         # Create a new room
                         code = (Server.generate_unique_code(
                             self.app.config["ROOM_CODE_LENGTH"], self.__rooms.keys()))
@@ -158,6 +163,14 @@ class Server:
                                        user_statistics=user_statistics)
             else:
                 return redirect(url_for("home"))
+
+        @self.app.route("/leaderboard")
+        def leaderboard():
+            # Fetches a list containing an unsorted tuple of usernames and total wins from leaderboard
+            unsorted_leaderboard = self.__database_manager.get_leaderboard()
+            unsorted_leaderboard = list(map(list, unsorted_leaderboard))
+            sorted_leaderboard = Server.sort_leaderboard(unsorted_leaderboard)
+            return render_template("leaderboard.html", leaderboard=sorted_leaderboard[:5])
 
         @self.app.route("/custom-questions", methods=["POST", "GET"])
         def custom_questions():
@@ -291,14 +304,32 @@ class Server:
                 break
         return code
 
+    # Quicksort
+    @staticmethod
+    def sort_leaderboard(leaderboard):
+        if len(leaderboard) <= 1:
+            return leaderboard
+        pivot_idx = len(leaderboard) - 1
+        swap_idx = -1
+        for idx in range(len(leaderboard)):
+            if leaderboard[idx][0] > leaderboard[pivot_idx][0]:
+                swap_idx += 1
+                leaderboard[swap_idx], leaderboard[idx] = leaderboard[idx], leaderboard[swap_idx]
+        swap_idx += 1
+        leaderboard[swap_idx], leaderboard[pivot_idx] = leaderboard[pivot_idx], leaderboard[swap_idx]
+        pivot_idx = swap_idx
+        left = Server.sort_leaderboard(leaderboard[:pivot_idx])
+        right = Server.sort_leaderboard(leaderboard[pivot_idx+1:])
+        return left + [leaderboard[pivot_idx]] + right
+
     def __delete_room_if_empty(self, code):
         # If room has no members
         if not self.__rooms[code].get_members():
             self.app.logger.info("Room deleted - Room " + code)
             del self.__rooms[code]
 
-    def run(self, host, port, debug):
-        self.app.run(host=host, port=port, debug=debug)
+    def run(self, host="0.0.0.0", port=5000, debug=True):
+        self.socketio.run(self.app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)
 
 
 class Room:
@@ -537,7 +568,7 @@ class Player(Member):
 def main():
     database_manager = DatabaseManager()
     server = Server(__name__, database_manager)
-    server.run(host='0.0.0.0', port=5000, debug=True)
+    server.run()
 
 
 if __name__ == "__main__":

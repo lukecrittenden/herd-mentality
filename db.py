@@ -53,6 +53,10 @@ class DatabaseManager:
         # User statistics are returned as a tuple
         return res[0]
 
+    def get_leaderboard(self):
+        res = self.__execute_query("SELECT TotalWins, Username FROM UserStatistics")
+        return res
+
     def update_user_statistics(self, username, score, winner):
         current_statistics = self.get_user_statistics(username)
         games_played, total_tokens = current_statistics[0] + 1, current_statistics[1] + score

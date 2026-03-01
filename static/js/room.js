@@ -152,7 +152,7 @@ function renderLobby() {
     createElement("input", {id: "message", className: "small-input", props: {
         placeholder: "[message]", type: "text"}, events: {"keypress": function(e) {
             // Sends message to backend when enter key is pressed
-            if (e.key === "Enter") {
+            if (e.key === "Enter" && e.target.value !== "") {
                 socket.send({data: e.target.value});
                 e.target.value = "";
             }}
