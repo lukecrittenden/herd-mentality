@@ -4,6 +4,7 @@ const mainContainer = document.getElementById("main");
 const usersContainer = document.getElementById("users");
 const menuContainer = document.getElementById("menu");
 
+// "state" stores variables that are not from python
 const state = {
     stage: "lobby",
     question: "",
@@ -25,7 +26,7 @@ const stageHandlers = {
 };
 
 function refreshContainers(stage) {
-    clearActiveTimer();
+    clearActiveTimer(); // Stops any running timers
     menuContainer.innerHTML = "";
     mainContainer.innerHTML = "";
     // Calls the stageHandler function for the current stage
@@ -74,10 +75,10 @@ function dropHandler(ev) {
     const parentGroupDiv = draggedEl.closest(".group-div");
     const parentGroupKey = parentGroupDiv.dataset.groupKey;
     let response;
-    // Remove from previous group
     if (parentGroupKey && state.matchedResponses[parentGroupKey]) {
         const groupArray = state.matchedResponses[parentGroupKey];
         let index = -1;
+        // Search for the user inside the group
         for (let i = 0; i < groupArray.length; i++) {
             const user = groupArray[i][0];
             if (user === userId) {
@@ -87,6 +88,7 @@ function dropHandler(ev) {
         }
         if (index !== -1) {
             response = groupArray[index][1];
+            // Remove from previous group
             groupArray.splice(index, 1);
             // Delete group if empty
             if (groupArray.length === 0) {
@@ -94,13 +96,15 @@ function dropHandler(ev) {
             }
         }
     }
-    // Add to new group
     if (response !== undefined) {
         if (groupDiv.innerHTML === "") {
+            // Create a unique key using the current time
             const key = Date.now().toString();
+            // Create group and add user-response pair
             state.matchedResponses[key] = [[userId, response]];
         } else {
             const targetGroup = groupDiv.dataset.groupKey;
+            // Add to existing group
             state.matchedResponses[targetGroup].push([userId, response]);
         }
     refreshContainers(state.stage);
@@ -108,9 +112,9 @@ function dropHandler(ev) {
 }
 
 function copyLink() {
-    // Copy room link to clipboard
     const link = window.location.href + "/" + code;
-    navigator.clipboard.writeText(link);
+    // Copy room link to clipboard
+    navigator.clipboard.writeText(link)
 }
 
 let activeTimer = null;
@@ -165,7 +169,7 @@ function renderQuestions() {
         const hostMenu = createElement("div", {id: "host-menu", className: "centered-div"}, menuContainer);
         const innerDiv = createElement("div", {}, hostMenu);
         createElement("button", {text: "End Game", className: "small-button",
-            // Click the "End Game" button sends message to backend
+            // Clicking the "End Game" button sends message to backend
             events: {click: () => socket.emit("end-game")}}, innerDiv
         );
     }
@@ -180,12 +184,13 @@ function renderQuestions() {
     // Sets the duration of the timer to timePerQuestion
     let timeLeft = timePerQuestion;
     activeTimer = setInterval(() => {
+        // Reduce time left on timer every second
         timeLeft--;
         timerText.textContent = timeLeft;
         if (timeLeft <= 0 || state.allUsersResponded) {
             // Stops timer
             clearActiveTimer();
-            // Only sends when user is host to ensure that responses are only matched on
+            // Only sends when user is host to ensure that responses are only matched once per room
             if (currentUser === currentHost && state.stage === "questions") {
                 socket.emit("match-responses");
             }
@@ -241,7 +246,7 @@ function renderMatchedResponses() {
                     className: "group-div", events: {drop: dropHandler, dragover: dragOverHandler}
                 }, mainContainer
             );
-            groupDiv.dataset.groupKey = group;
+            groupDiv.dataset.groupKey = group; // Allows for groups to be more easily accessed when matching responses
             const numberOfResponsesInGroup = state.matchedResponses[group].length;
             for (let i = 0; i < numberOfResponsesInGroup; i++) {
                 const user = state.matchedResponses[group][i][0];
@@ -254,8 +259,7 @@ function renderMatchedResponses() {
                 );
             }
         }
-        // Make main container scrollable
-        mainContainer.style.overflowY = "scroll";
+        mainContainer.style.overflowY = "scroll"; // Make main container scrollable
         // Add a final empty group which allows the Cattle Wrangler to create new groups when matching responses
         const div = createElement("div", {
                 className: "group-div", events: {drop: dropHandler, dragover: dragOverHandler}}, mainContainer
@@ -320,6 +324,7 @@ socket.on("add-users", function addUser(data) {
             displayName += " [host] \uD83D\uDC51";
         }
         if (item === state.pinkCowToken) {
+            // Add pig emoji for the user possessing the pink cow token
             displayName += "\uD83D\uDC37";
         }
         if (state.stage !== "lobby") {

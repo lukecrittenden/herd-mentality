@@ -11,12 +11,11 @@ class RecaptchaManager:
         self.__secret_key = secret_key
 
     def is_human(self, captcha_response):
-        # # Sends data to Google
-        # data = {'response': captcha_response, 'secret': self.__secret_key}
-        # response = post("https://www.google.com/recaptcha/api/siteverify", data=data, timeout=10)
-        # # Returns formatted response
-        # return json.loads(response.text)['success']
-        return True
+        # Sends data to Google
+        data = {'response': captcha_response, 'secret': self.__secret_key}
+        response = post("https://www.google.com/recaptcha/api/siteverify", data=data, timeout=10)
+        # Returns formatted response
+        return json.loads(response.text)['success']
 
 class PasswordManager:
     @staticmethod
@@ -63,10 +62,12 @@ class GameManager:
     def automatically_match_responses(responses):
         matched_responses = {}
         for user, response in responses.items():
+            # Ignore case and whitespace
             key = response.lower().strip()
             if key in matched_responses:
                 matched_responses[key].append((user, response))
             else:
+                # Create a new group of responses
                 matched_responses[key] = [(user, response)]
         return matched_responses
 
@@ -75,18 +76,22 @@ class GameManager:
         scores = {}
         pink_cow_token = None
         max_length = 0
-        longest_groups = []
+        longest_groups = [] # More than one group can be the longest group
         for group in matched_responses.values():
             if len(group) == 1:
                 if pink_cow_token is None:
+                    # The pink cow token is awarded to the only user in the group
+                    # Since the group only has one member, this will be the first member
                     pink_cow_token = group[0][0]
                 else:
+                    # If more than one player has a unique answer than no-one is given the pink cow token
                     pink_cow_token = None
             if len(group) > max_length:
                 max_length = len(group)
                 longest_groups = [group]
             elif len(group) == max_length:
                 longest_groups.append(group)
+        # Points are only awarded when there is one largest group
         if len(longest_groups) == 1 and max_length > 1:
             for response in longest_groups[0]:
                 scores[response[0]] = 1
@@ -100,10 +105,11 @@ class GameManager:
         return GameManager.select_random_member(members)
 
     @staticmethod
-    def check_winners(scores):
+    def check_winners(scores, pink_cow_token):
         winners = []
         for member in scores:
-            if scores[member] >= 8:
+            # A member cannot win if they have the pink cow token
+            if scores[member] >= 8 and member != pink_cow_token:
                 winners.append(member)
         if winners:
             return winners

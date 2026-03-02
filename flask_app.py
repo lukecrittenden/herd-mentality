@@ -6,13 +6,11 @@ from db import *
 from dotenv import load_dotenv
 from string import ascii_uppercase
 
-# TODO: Fix user joining during game issue
-
 class Server:
     def __init__(self, name, database_manager):
         # Stores rooms as key-value pairs: the key is the room code and the value is the room object
         self.__rooms = {}
-        # Variables should be public so they can be accessed by WSGI file
+        # Variables should be public so they can be accessed by WSGI file during production
         self.app = Flask(name)
         self.socketio = SocketIO(self.app)
         # Sets keys for server
@@ -42,7 +40,7 @@ class Server:
                     session.pop("room")
                 if request.method == "POST":
                     leaderboard = request.form.get("leaderboard", False)
-                    code = request.form.get("code").upper()
+                    code = request.form.get("code").upper() # Convert the code to upper case
                     create = request.form.get("create", False) # If the value does not exist, create defaults to False
                     user = session.get("user")
                     error = None
@@ -50,8 +48,7 @@ class Server:
                         return redirect(url_for("leaderboard"))
                     elif create == "":
                         # Create a new room
-                        code = (Server.generate_unique_code(
-                            self.app.config["ROOM_CODE_LENGTH"], self.__rooms.keys()))
+                        code = (Server.generate_unique_code(self.app.config["ROOM_CODE_LENGTH"], self.__rooms.keys()))
                         self.__rooms[code] = Room(user, code,
                                                   database_manager.get_custom_questions(session.get("user")))
                         self.app.logger.info("Room created - Room " + code)
@@ -59,6 +56,7 @@ class Server:
                         error = "Please enter a room code"
                     elif code not in self.__rooms.keys():
                         error = "Room does not exist"
+                    # If the number of members in the room in greater than the MAX_MEMBERS constant
                     elif len(self.__rooms[code].get_members()) >= self.app.config["MAX_MEMBERS"]:
                         error = "Room full"
                     if error:
@@ -66,7 +64,6 @@ class Server:
                     else:
                         session["room"] = code
                         return redirect(url_for("room"))
-
                 return render_template("signed_in_home.html")
             else:
                 return render_template("signed_out_home.html")
@@ -86,7 +83,7 @@ class Server:
                 # Checks that the user has completed the reCAPTCHA successfully
                 elif not captcha_response or not self.__recaptcha_manager.is_human(captcha_response):
                     error = "Please complete the reCAPTCHA"
-                elif self.__database_manager.check_username_exists(username):
+                elif self.__database_manager.username_exists(username):
                     # Check that users password matches the password stored in the database as a hash
                     pepper = self.app.config["PEPPER_KEY"]
                     if PasswordManager.check_hash_match(password, self.__database_manager.get_hash_and_salt(username),
@@ -99,12 +96,11 @@ class Server:
                 if error:
                     # Logs IP address and error
                     self.app.logger.info(f"{request.remote_addr} - {error}")
-                    return render_template("account/login.html", error=error, username=username,
-                                           password=password, site_key=self.app.config["RECAPTCHA_SITE_KEY"])
+                    return render_template("account/login.html", error=error, username=username, password=password,
+                                           site_key=self.app.config["RECAPTCHA_SITE_KEY"])
                 else:
                     return redirect(url_for("home"))
-            return render_template("account/login.html",
-                                   site_key=self.app.config["RECAPTCHA_SITE_KEY"])
+            return render_template("account/login.html", site_key=self.app.config["RECAPTCHA_SITE_KEY"])
 
         @self.app.route("/register", methods=["POST", "GET"])
         def register():
@@ -115,7 +111,7 @@ class Server:
                 captcha_response = request.form['g-recaptcha-response']
                 if not username:
                     error = "Please enter a username"
-                elif self.__database_manager.check_username_exists(username):
+                elif self.__database_manager.username_exists(username):
                     error = "Account with that username already exists"
                 else:
                     error = PasswordManager.validate_password(username, password)
@@ -125,16 +121,14 @@ class Server:
                 if error:
                     # Logs IP address and error
                     self.app.logger.info(f"{request.remote_addr} - {error}")
-                    return render_template("account/register.html", username=username,
-                                           password=password, error=error,
+                    return render_template("account/register.html", username=username, password=password, error=error,
                                            site_key=self.app.config["RECAPTCHA_SITE_KEY"])
                 else:
-                    # Add user and log message if user created successfully
                     pepper = self.app.config["PEPPER_KEY"]
+                    # Add user and log message if user created successfully
                     self.app.logger.info(self.__database_manager.add_user(username, password, pepper))
                     return redirect(url_for("home"))
-            return render_template("account/register.html",
-                                   site_key=self.app.config["RECAPTCHA_SITE_KEY"])
+            return render_template("account/register.html", site_key=self.app.config["RECAPTCHA_SITE_KEY"])
 
         @self.app.route("/account", methods=["POST", "GET"])
         def account():
@@ -158,8 +152,7 @@ class Server:
                     # Add W/L ratio to user_statistics tuple
                     user_statistics += ((user_statistics[2]/(user_statistics[2] + user_statistics[3])) * 100,)
                 date_created = self.__database_manager.get_date_user_created(session.get("user"))
-                return render_template("account/account.html",  user=session.get("user"),
-                                       account_created=date_created,
+                return render_template("account/account.html",  user=session.get("user"), account_created=date_created,
                                        user_statistics=user_statistics)
             else:
                 return redirect(url_for("home"))
@@ -168,7 +161,7 @@ class Server:
         def leaderboard():
             # Fetches a list containing an unsorted tuple of usernames and total wins from leaderboard
             unsorted_leaderboard = self.__database_manager.get_leaderboard()
-            unsorted_leaderboard = list(map(list, unsorted_leaderboard))
+            unsorted_leaderboard = list(map(list, unsorted_leaderboard)) # Converts leaderboard to a list
             sorted_leaderboard = Server.sort_leaderboard(unsorted_leaderboard)
             return render_template("leaderboard.html", leaderboard=sorted_leaderboard[:5])
 
@@ -199,8 +192,7 @@ class Server:
                                 return redirect(request.url)
                     elif request.form["submit-button"] == "reset":
                         # Reset questions belonging to the user and log the result
-                        self.app.logger.info(
-                            self.__database_manager.reset_custom_questions(session.get("user")))
+                        self.app.logger.info(self.__database_manager.reset_custom_questions(session.get("user")))
                     return redirect(url_for("home"))
                 return render_template("custom_questions.html")
             else:
@@ -228,7 +220,7 @@ class Server:
 
         @self.socketio.on("message")
         def message(data):
-            # If room exists
+            # If a room with the code exists in the server's list of room keys
             if session.get("room") in self.__rooms.keys():
                 # Adds message to room
                 self.__rooms[session.get("room")].add_message(data["data"], session.get("user"))
@@ -239,9 +231,8 @@ class Server:
         def connect():
             # If room of user not in session
             if not session.get("room") or not session.get("user"):
-                # Redirect user home
+                # Redirect user to the homepage
                 return redirect(url_for("home"))
-            # If room does not exist
             if session.get("room") not in self.__rooms.keys():
                 leave_room(session.get("room"))
                 return redirect(url_for("home"))
@@ -300,24 +291,27 @@ class Server:
             for _ in range(length):
                 code += random.choice(ascii_uppercase)
             if code not in room_keys:
-                # If code does already exist in rooms
+                # If code already exists in rooms
                 break
         return code
 
-    # Quicksort
+    # Quicksort (recursive)
     @staticmethod
     def sort_leaderboard(leaderboard):
         if len(leaderboard) <= 1:
             return leaderboard
         pivot_idx = len(leaderboard) - 1
         swap_idx = -1
+        # Loops through leaderboard, abd moves all the item with values greater than the pivot before the pivot
         for idx in range(len(leaderboard)):
             if leaderboard[idx][0] > leaderboard[pivot_idx][0]:
                 swap_idx += 1
                 leaderboard[swap_idx], leaderboard[idx] = leaderboard[idx], leaderboard[swap_idx]
         swap_idx += 1
         leaderboard[swap_idx], leaderboard[pivot_idx] = leaderboard[pivot_idx], leaderboard[swap_idx]
+        # As the pivot has been moved, the pivot index must be updated
         pivot_idx = swap_idx
+        # Sorts the sections of the leaderboard left and right of the pivot index
         left = Server.sort_leaderboard(leaderboard[:pivot_idx])
         right = Server.sort_leaderboard(leaderboard[pivot_idx+1:])
         return left + [leaderboard[pivot_idx]] + right
@@ -339,8 +333,7 @@ class Room:
         self.__members = []
         self.__messages = []
         self.__host = host
-        # Time is in seconds
-        self.__time_per_question = 10
+        self.__time_per_question = 10 # Time is in seconds
         # The stages of the game are: lobby, questions, match_responses, final_results
         self.__stage = "lobby"
         self.__cattle_wrangler = None
@@ -351,6 +344,7 @@ class Room:
             questions_json = json.load(file)
         for question in questions_json["questions"]:
             self.__questions.append(question)
+        # Any custom questions belonging to the host are added to the custom questions list
         for question in custom_questions:
             self.__questions.append(question)
         self.__game_manager = GameManager(self.__questions)
@@ -406,7 +400,7 @@ class Room:
             if member.get_user() == user:
                 self.__members.remove(member)
                 leave_room(session.get("room"))
-        # If the host leaves the room while other users are in it, a user is randomly assigned as the host
+        # If the host leaves the room, another user is randomly assigned as the host
         if self.__host == user and len(self.__members) != 0:
             self.__host = GameManager.select_random_member(self.__members).get_user()
             emit("message", self.__host + " is now the host", to=self.__code)
@@ -419,7 +413,7 @@ class Room:
     def start_game(self):
         # A minimum of 3 players is required to start a game
         if len(self.__members) >= 3:
-            # If stage has changed, display game start message and questions
+            # If stage has changed, re-initialise game
             if self.__stage != "questions":
                 self.__stage = "questions"
                 self.__cattle_wrangler = GameManager.select_random_member(self.__members)
@@ -447,12 +441,11 @@ class Room:
             emit("all-users-responded", to=self.__code)
 
     def change_time_per_question(self):
-        if self.__time_per_question == 10:
-            self.__time_per_question = 20
-        elif self.__time_per_question == 20:
-            self.__time_per_question = 30
+        # Loop through possible times per question: 10, 20 and 30s
+        if self.__time_per_question == 30:
+            self.__time_per_question += 10
         else:
-            self.__time_per_question = 10
+            self.__time_per_question = 30
         emit("change-time-per-question", self.__time_per_question, to=self.__code)
         # Reload previous messages: otherwise they will be reset by room refresh
         self.load_previous_messages()
@@ -460,6 +453,7 @@ class Room:
     def match_responses(self):
         responses = self.__get_all_responses()
         if responses == {}:
+            # If there are no responses, move onto the next question
             self.next_question(no_responses=True)
         else:
             # The copy function ensures that the function does not mutate the original members list
@@ -474,7 +468,9 @@ class Room:
         self.__reset_responses()
 
     def submit_matched_responses(self, matched_responses, database_manager):
+        # Get results for round
         round_results, self.__pink_cow_token = GameManager.calculate_results(matched_responses)
+        # Update results for all members
         for username in round_results:
             for member in self.__members:
                 if username == member.get_user():
@@ -482,7 +478,9 @@ class Room:
         scores = self.__get_all_scores()
         emit("update-scores", [scores, self.__pink_cow_token], to=self.__code)
         self.__refresh_users_list()
-        self.__winners = GameManager.check_winners(scores)
+        # Get list of winners
+        self.__winners = GameManager.check_winners(scores, self.__cattle_wrangler)
+        # If there are winners, move onto final results stage
         if self.__winners:
             self.__stage = "final_results"
             emit("final-results", [scores, self.__winners], to=self.__code)
@@ -491,8 +489,10 @@ class Room:
                     winner = True
                 else:
                     winner = False
+                    # Update user statistics for the round
                 database_manager.update_user_statistics(member.get_user(), member.get_score(), winner)
         else:
+            # If there are no winners, move onto final results stage
             self.next_question()
 
     def get_code(self):

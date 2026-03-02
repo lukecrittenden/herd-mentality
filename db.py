@@ -9,6 +9,7 @@ class DatabaseManager:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         self.__schema_path = os.path.join(base_dir, "schema.sql")
         self.__db_path = os.path.join(base_dir, "users.db")
+        # If database does not exist
         if not os.path.exists(self.__db_path):
             self.create_database()
 
@@ -66,7 +67,7 @@ class DatabaseManager:
                        games_played, total_tokens, total_wins, total_losses, username)
         return "User Statistics updated successfully"
 
-    def check_username_exists(self, username):
+    def username_exists(self, username):
         res = self.__execute_query("SELECT 0 FROM Users WHERE Username = ?;", username)
         # Return True when the number of players with the username is greater than 0 (i.e. the username exists)
         return len(res) > 0
