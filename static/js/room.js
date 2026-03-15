@@ -57,7 +57,7 @@ function createElement(type, {id, text, className, props = {}, events = {}} = {}
 }
 
 // Drag and drop functions
-// https://www.w3schools.com/html/html5_draganddrop.asp
+// Modified from https://www.w3schools.com/html/html5_draganddrop.asp
 function dragStartHandler(ev) {
     ev.dataTransfer.setData("text/plain", ev.target.id);
 }

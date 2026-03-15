@@ -25,7 +25,7 @@ class Server:
             SESSION_COOKIE_SAMESITE='Lax',
             MAX_CONTENT_LENGTH=1 * 1024 * 1024, # Limits file uploads to 1MB
             ROOM_CODE_LENGTH=4,
-            MAX_MEMBERS=10
+            MAX_MEMBERS=9
         )
         # Create manager objects
         self.__database_manager = database_manager
@@ -184,6 +184,10 @@ class Server:
                             try:
                                 # Load custom json file
                                 questions_json = json.load(file)
+                                # Check if json is in a valid format for questions
+                                if not isinstance(questions_json, (list, dict)):
+                                    flash("JSON must contain an object or array of questions")
+                                    return redirect(request.url)
                                 # Add custom questions to database and log result
                                 self.app.logger.info(
                                     self.__database_manager.create_custom_questions(session.get("user"),questions_json))
@@ -302,7 +306,7 @@ class Server:
             return leaderboard
         pivot_idx = len(leaderboard) - 1
         swap_idx = -1
-        # Loops through leaderboard, abd moves all the item with values greater than the pivot before the pivot
+        # Loops through leaderboard, and moves all the item with values greater than the pivot before the pivot
         for idx in range(len(leaderboard)):
             if leaderboard[idx][0] > leaderboard[pivot_idx][0]:
                 swap_idx += 1
@@ -392,6 +396,10 @@ class Room:
     def add_member(self, user):
         self.__members.append(Player(user))
         emit("message", user + " has entered the room", to=self.__code)
+        # Ensure that user is correctly added to the scoreboard
+        if self.__stage != "lobby":
+            self.__members[len(self.__members)-1].reset_score() # Initialise score to 0
+            emit("update-scores", [self.__get_all_scores(), self.__pink_cow_token], to=self.__code)
         self.__refresh_users_list()
 
     def remove_member(self, user):
@@ -442,10 +450,10 @@ class Room:
 
     def change_time_per_question(self):
         # Loop through possible times per question: 10, 20 and 30s
-        if self.__time_per_question == 30:
+        if self.__time_per_question <= 30:
             self.__time_per_question += 10
         else:
-            self.__time_per_question = 30
+            self.__time_per_question = 10
         emit("change-time-per-question", self.__time_per_question, to=self.__code)
         # Reload previous messages: otherwise they will be reset by room refresh
         self.load_previous_messages()
@@ -469,7 +477,9 @@ class Room:
 
     def submit_matched_responses(self, matched_responses, database_manager):
         # Get results for round
-        round_results, self.__pink_cow_token = GameManager.calculate_results(matched_responses)
+        round_results, pink_cow_token = GameManager.calculate_results(matched_responses)
+        if pink_cow_token:
+            self.__pink_cow_token = pink_cow_token
         # Update results for all members
         for username in round_results:
             for member in self.__members:
@@ -479,7 +489,7 @@ class Room:
         emit("update-scores", [scores, self.__pink_cow_token], to=self.__code)
         self.__refresh_users_list()
         # Get list of winners
-        self.__winners = GameManager.check_winners(scores, self.__cattle_wrangler)
+        self.__winners = GameManager.check_winners(scores, self.__pink_cow_token)
         # If there are winners, move onto final results stage
         if self.__winners:
             self.__stage = "final_results"

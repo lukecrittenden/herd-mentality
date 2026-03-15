@@ -1,12 +1,11 @@
-{% extends 'base.html' %} {% block content %}
+{% extends 'base.html' %}
+{% block content %}
 <h1>Leaderboard</h1>
 <div class="centered-div">
     <div class="alternative-box">
-        <p>1st: {{leaderboard[0][1]}} - {{leaderboard[0][0]}}</p>
-        <p>2nd: {{leaderboard[1][1]}} - {{leaderboard[1][0]}}</p>
-        <p>3rd: {{leaderboard[2][1]}} - {{leaderboard[2][0]}}</p>
-        <p>4th: {{leaderboard[3][1]}} - {{leaderboard[3][0]}}</p>
-        <p>5th: {{leaderboard[4][1]}} - {{leaderboard[4][0]}}</p>
+        {% for player in leaderboard %}
+            <p>{{ loop.index }}{% if loop.index == 1 %}st{% elif loop.index == 2 %}nd{% elif loop.index == 3 %}rd{% else %}th{% endif %}: {{ player[1] }} - {{ player[0] }}</p>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}
