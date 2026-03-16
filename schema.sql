@@ -13,11 +13,13 @@ CREATE TABLE UserStatistics (
 	GamesPlayed INT,
 	TotalTokens INT,
 	TotalWins INT,
-	TotalLosses INT
+	TotalLosses INT,
+    FOREIGN KEY (Username) REFERENCES Users(Username) ON DELETE CASCADE
 );
 CREATE TABLE CustomQuestions (
 	Username VARCHAR(16),
 	QuestionText VARCHAR(255) NOT NULL,
 	DateCreated DATE NOT NULL,
-    PRIMARY KEY (Username, QuestionText)
+    PRIMARY KEY (Username, QuestionText),
+    FOREIGN KEY (Username) REFERENCES Users(Username) ON DELETE CASCADE
 );

@@ -15,6 +15,7 @@ class DatabaseManager:
 
     def __execute_action(self, sql, *args):
         con = connect(self.__db_path)
+        con.execute("PRAGMA foreign_keys = ON;")
         cur = con.cursor()
         cur.execute(sql, args)
         con.commit()
@@ -22,6 +23,7 @@ class DatabaseManager:
 
     def __execute_query(self, sql, *args):
         con = connect(self.__db_path)
+        con.execute("PRAGMA foreign_keys = ON;")
         cur = con.cursor()
         cur.execute(sql, args)
         res = cur.fetchall()
@@ -97,6 +99,4 @@ class DatabaseManager:
 
     def delete_user(self, username):
         self.__execute_action("DELETE FROM Users WHERE Username = ?;", username)
-        self.__execute_action("DELETE FROM UserStatistics WHERE Username = ?;", username)
-        self.__execute_action("DELETE FROM CustomQuestions WHERE Username = ?;", username)
         return f"User '{username}' deleted successfully"
